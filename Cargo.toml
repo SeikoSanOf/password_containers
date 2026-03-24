@@ -11,6 +11,6 @@ aes-gcm = "0.10"
 aes = "0.8"
 pbkdf2 = "0.12"
 sha2 = "0.10"
-rand = "0.10.0"
+
 base64 = "0.22.1"
 zeroize = "1.6"
