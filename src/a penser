@@ -1,0 +1,38 @@
+Ne génère le salt que lors de la création du coffre. S'il existe déjà, lis-le dans le fichier vault.json et réutilise-le
+
+Tu utilises Zeroize sur la clé, ce qui est bien. Mais tes structures Secret et master_password (qui est une String) restent en mémoire.
+
+    String en Rust est allouée sur le tas (heap). Quand elle est libérée, Rust ne nettoie pas forcément les octets.
+
+    Correction : Utilise le type SecretString de la crate secrecy pour le mot de passe maître et les secrets.
+
+Argon2 au lieu de PBKDF2
+
+
+AES-GCM est un chiffrement authentifié, ce qui est parfait. Cependant, si quelqu'un modifie un seul octet du fichier vault.json, cipher.decrypt échouera. Actuellement, ton code fait un process::exit(1). C'est correct, mais assure-toi de bien différencier "Mauvais mot de passe" et "Fichier corrompu".
+
+// Utilise Argon2 pour plus de sécurité contre les attaques par force brute
+use argon2::{
+    password_hash::{PasswordHasher, SaltString},
+    Argon2,
+};
+
+// Amélioration de la structure pour inclure Zeroize directement
+#[derive(Serialize, Deserialize, Debug, Zeroize)]
+#[zeroize(drop)] // Nettoie la RAM dès que la variable est détruite
+struct Secret {
+    service: String,
+    identifiant: String,
+    mot_de_passe: String,
+}
+
+fn derive_key_argon2(master_password: &str, salt: &[u8]) -> [u8; 32] {
+    let mut key = [0u8; 32];
+    let params = argon2::Params::default(); // Ajustable selon tes besoins
+    let argon2 = Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
+    
+    argon2.hash_password_into(master_password.as_bytes(), salt, &mut key)
+        .expect("Erreur lors de la dérivation de clé");
+    
+    key
+}
