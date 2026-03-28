@@ -2,6 +2,7 @@ use aes_gcm::aead::{Aead, KeyInit, OsRng};
 use aes_gcm::aead::rand_core::RngCore;
 use aes_gcm::{Aes256Gcm, Nonce};
 use base64::{engine::general_purpose, Engine as _};
+use copypasta::ClipboardProvider;
 use pbkdf2::pbkdf2_hmac;
 use rpassword::read_password;
 use serde::{Deserialize, Serialize};
@@ -176,8 +177,10 @@ fn main() {
 
     loop {
         println!("\n1. Ajouter un mot de passe");
-        println!("2. Afficher les secrets");
-        println!("3. Quitter");
+        println!("2. Afficher/Copier les secrets");
+        println!("3. Copier un mot de passe");
+        println!("4. Supprimer un mot de passe");
+        println!("5. Quitter");
         print!("Choix : ");
         io::stdout().flush().unwrap();
 
@@ -214,7 +217,13 @@ fn main() {
                     }
                 }
             }
-            "3" => {
+            "3" => copier_mot_de_passe(&coffre),
+            "4" => {
+                if supprimer_mot_de_passe(&mut coffre) {
+                    sauvegarder_coffre(&master_password, &coffre);
+                }
+            }
+            "5" => {
                 println!("Fermeture sécurisée...");
                 sauvegarder_coffre(&master_password, &coffre);
                 break;
@@ -246,4 +255,69 @@ fn saisir_donnee(prompt: &str) -> String {
     let mut input = String::new();
     io::stdin().read_line(&mut input).expect("Échec de la lecture");
     input.trim().to_string()
+}
+
+fn copier_mot_de_passe(coffre: &[Secret]) {
+    if coffre.is_empty() {
+        println!("\nLe coffre est vide.");
+        return;
+    }
+
+    println!("\n--- Liste de vos secrets ---");
+    for (i, s) in coffre.iter().enumerate() {
+        println!("{}. Service: {} | Login: {}", i + 1, s.service, s.identifiant);
+    }
+
+    print!("Choisissez un numéro pour copier le mot de passe : ");
+    io::stdout().flush().unwrap();
+    let mut num = String::new();
+    io::stdin().read_line(&mut num).expect("Erreur de lecture");
+
+    if let Ok(index) = num.trim().parse::<usize>() {
+        if index > 0 && index <= coffre.len() {
+            let mdp = &coffre[index - 1].mot_de_passe;
+            match copypasta::ClipboardContext::new().and_then(|mut ctx: copypasta::ClipboardContext| ctx.set_contents(mdp.clone())) {
+                Ok(_) => {
+                    println!("[✓] Mot de passe copié dans le presse-papiers pour {}.", coffre[index - 1].service);
+                    println!("    (Le mot de passe ne s'affiche pas pour des raisons de sécurité)");
+                }
+                Err(e) => eprintln!("Erreur lors de la copie dans le presse-papiers : {}", e),
+            }
+        } else {
+            println!("Numéro invalide.");
+        }
+    } else {
+        println!("Entrée invalide.");
+    }
+}
+
+fn supprimer_mot_de_passe(coffre: &mut Vec<Secret>) -> bool {
+    if coffre.is_empty() {
+        println!("\nLe coffre est vide.");
+        return false;
+    }
+
+    println!("\n--- Liste de vos secrets ---");
+    for (i, s) in coffre.iter().enumerate() {
+        println!("{}. Service: {} | Login: {}", i + 1, s.service, s.identifiant);
+    }
+
+    print!("Choisissez un numéro à supprimer : ");
+    io::stdout().flush().unwrap();
+    let mut num = String::new();
+    io::stdin().read_line(&mut num).expect("Erreur de lecture");
+
+    if let Ok(index) = num.trim().parse::<usize>() {
+        if index > 0 && index <= coffre.len() {
+            let secret_suppr = coffre.remove(index - 1);
+            println!("[✓] Secret pour {} supprimé avec succès.", secret_suppr.service);
+            return true;
+        } else {
+            println!("Numéro invalide.");
+        }
+    } else {
+        println!("Entrée invalide.");
+    }
+
+    false
 }
