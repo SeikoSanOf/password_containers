@@ -12,4 +12,6 @@ secrets.json
 *.p12
 *.jks
 .env
+.user-settings.json
+vault.db
 
